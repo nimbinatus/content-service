@@ -9,8 +9,8 @@ A content storage and retrieval service for deconst.
 
 To develop locally, you'll need to install:
 
- * [Docker](https://docs.docker.com/installation/#installation) to build and launch the container.
- * [docker-compose](https://docs.docker.com/compose/install/) to manage the container's configuration.
+*   [Docker](https://docs.docker.com/installation/#installation) to build and launch the container.
+*   [docker-compose](https://docs.docker.com/compose/install/) to manage the container's configuration.
 
 Then, you can build and run the service with:
 
@@ -28,35 +28,35 @@ docker-compose up
 
 The content service is configured by passing environment variables to the Docker container. These are the available configuration options:
 
- * `STORAGE`: *(default: `"remote"`)* Specify `memory` to use entirely in-memory storage, or `remote` to use external storage services.
- * `ADMIN_APIKEY`: **(required)** An API key that can be used by administrators or other internal services to issue and revoke API keys.
+*   `STORAGE`: *(default: `"remote"`)* Specify `memory` to use entirely in-memory storage, or `remote` to use external storage services.
+*   `ADMIN_APIKEY`: **(required)** An API key that can be used by administrators or other internal services to issue and revoke API keys.
 
 ### Remote services
 
- * `RACKSPACE_USERNAME`: **(required if STORAGE=remote)** The username for your Rackspace account.
- * `RACKSPACE_APIKEY`: **(required if STORAGE=remote)** The API key for your Rackspace account.
- * `RACKSPACE_REGION`: **(required if STORAGE=remote)** The Rackspace region for the content service to use.
- * `RACKSPACE_SERVICENET`: *(default: `"false"`)* If `"true"`, connect to Cloud Files over ServiceNet rather than the public endpoint.
- * `CONTENT_CONTAINER`: **(required if STORAGE=remote)** Container name to use for the stored metadata envelopes.
- * `ASSET_CONTAINER`: **(required if STORAGE=remote)** Container name to use for published assets.
- * `MONGODB_URL`: **(required if STORAGE=remote)** MongoDB connection string, including any required authentication information.
- * `MONGODB_PREFIX`: **(default: `""`)** Prefix used to partition MongoDB collection names from other services using the same MongoDB database.
- * `ELASTICSEARCH_HOST`: **(required if STORAGE=remote)** Elasticsearch connection string, including any required authentication information.
+*   `RACKSPACE_USERNAME`: **(required if STORAGE=remote)** The username for your Rackspace account.
+*   `RACKSPACE_APIKEY`: **(required if STORAGE=remote)** The API key for your Rackspace account.
+*   `RACKSPACE_REGION`: **(required if STORAGE=remote)** The Rackspace region for the content service to use.
+*   `RACKSPACE_SERVICENET`: *(default: `"false"`)* If `"true"`, connect to Cloud Files over ServiceNet rather than the public endpoint.
+*   `CONTENT_CONTAINER`: **(required if STORAGE=remote)** Container name to use for the stored metadata envelopes.
+*   `ASSET_CONTAINER`: **(required if STORAGE=remote)** Container name to use for published assets.
+*   `MONGODB_URL`: **(required if STORAGE=remote)** MongoDB connection string, including any required authentication information.
+*   `MONGODB_PREFIX`: **(default: `""`)** Prefix used to partition MongoDB collection names from other services using the same MongoDB database.
+*   `ELASTICSEARCH_HOST`: **(required if STORAGE=remote)** Elasticsearch connection string, including any required authentication information.
 
 ### Memory storage
 
- * `MEMORY_ASSET_PREFIX`: **(default: `"/__local_asset__/"`)** Prefix used to construct URLs for assets present in memory storage.
+*   `MEMORY_ASSET_PREFIX`: **(default: `"/__local_asset__/"`)** Prefix used to construct URLs for assets present in memory storage.
 
 ### Staging
 
- * `STAGING_MODE`: *(default: `"false"`)* Act as a staging store, to stage many revisions of content simultaneously. When staging mode is active, proxied content IDs will have their first URL path segment, the revision ID, removed when making the upstream request.
- * `PROXY_UPSTREAM`: *(required if STAGING_MODE=true)* If a URL is specified, content not found in this content store will be requested from an upstream content store API. Named assets will be accumulated from the upstream content store and this service, with named assets from this service taking precedence.
+*   `STAGING_MODE`: *(default: `"false"`)* Act as a staging store, to stage many revisions of content simultaneously. When staging mode is active, proxied content IDs will have their first URL path segment, the revision ID, removed when making the upstream request.
+*   `PROXY_UPSTREAM`: *(required if STAGING_MODE=true)* If a URL is specified, content not found in this content store will be requested from an upstream content store API. Named assets will be accumulated from the upstream content store and this service, with named assets from this service taking precedence.
 
 ### Logging
 
- * `CONTENT_LOG_LEVEL`: *(default: `"info"`)* Optional logging level, case-insensitive. The valid levels are `TRACE`, `DEBUG`, `VERBOSE`, `INFO`, `WARN`, and `ERROR`.
- * `CONTENT_LOG_COLOR`: *(default: `"false"`)* Logging colorization. Set to `"true"` to enable colorful logs.
- * `NODE_ENV`: If set to `"production"`, logs will be emitted as JSON objects.
+*   `CONTENT_LOG_LEVEL`: *(default: `"info"`)* Optional logging level, case-insensitive. The valid levels are `TRACE`, `DEBUG`, `VERBOSE`, `INFO`, `WARN`, and `ERROR`.
+*   `CONTENT_LOG_COLOR`: *(default: `"false"`)* Logging colorization. Set to `"true"` to enable colorful logs.
+*   `NODE_ENV`: If set to `"production"`, logs will be emitted as JSON objects.
 
 Both Cloud Files containers will be created and configured on application launch if they do not already exist.
 
@@ -64,39 +64,39 @@ Both Cloud Files containers will be created and configured on application launch
 
 These instructions will create the resources necessary to run the deconst content service in a dev env in Kubernetes with Minikube.
 
-1. Run through [Deconst Dev Env in Kubernetes with Minikube](https://github.com/deconst/deploy#deconst-dev-env-in-kubernetes-with-minikube)
+1.  Run through [Deconst Dev Env in Kubernetes with Minikube](https://github.com/deconst/deploy#deconst-dev-env-in-kubernetes-with-minikube)
 
-1. Open a new shell
+1.  Open a new shell
 
-1. Customize your environment settings
+1.  Customize your environment settings
 
-    ```bash
-    cp environment.sample.sh environment.sh
-    ${EDITOR} environment.sh
-    ```
+      ```bash
+      cp environment.sample.sh environment.sh
+      ${EDITOR} environment.sh
+      ```
 
     Edit the following environment variables. For additional env vars and a full description of each env var, see [Configuration](#configuration).
 
-    * `ADMIN_APIKEY=my-random-api-key`
-      * You can use the value of `hexdump -v -e '1/1 "%.2x"' -n 128 /dev/random`
-    * `DOCKER_IMAGE=kube-registry.kube-system.svc.cluster.local:31000/content-service:dev`
-      * If you want to use the production image instead, keep the default value and skip the next step
-    * `STORAGE=remote`
-    * `RACKSPACE_USERNAME=my-rackspace-username`
-    * `RACKSPACE_APIKEY=my-rackspace-api-key`
-    * `RACKSPACE_REGION=IAD`
-    * `RACKSPACE_SERVICENET=false`
-    * `CONTENT_CONTAINER=deconst-${NODE_ENV}-content`
-    * `ASSET_CONTAINER=deconst-${NODE_ENV}-asset`
-    * `MONGODB_URL=mongodb://mongo.deconst.svc.cluster.local:27017/content`
-    * `ELASTICSEARCH_HOST=http://elasticsearch-logging.kube-system.svc.cluster.local:9200/`
+    *   `ADMIN_APIKEY=my-random-api-key`
+        *   You can use the value of `hexdump -v -e '1/1 "%.2x"' -n 128 /dev/random`
+    *   `DOCKER_IMAGE=kube-registry.kube-system.svc.cluster.local:31000/content-service:dev`
+        *   If you want to use the production image instead, keep the default value and skip the next step
+    *   `STORAGE=remote`
+    *   `RACKSPACE_USERNAME=my-rackspace-username`
+    *   `RACKSPACE_APIKEY=my-rackspace-api-key`
+    *   `RACKSPACE_REGION=IAD`
+    *   `RACKSPACE_SERVICENET=false`
+    *   `CONTENT_CONTAINER=deconst-${NODE_ENV}-content`
+    *   `ASSET_CONTAINER=deconst-${NODE_ENV}-asset`
+    *   `MONGODB_URL=mongodb://mongo.deconst.svc.cluster.local:27017/content`
+    *   `ELASTICSEARCH_HOST=http://elasticsearch-logging.kube-system.svc.cluster.local:9200/`
 
 
-    ```bash
-    source environment.sh
-    ```
+      ```bash
+      source environment.sh
+      ```
 
-1. Build a development Docker image
+1.  Build a development Docker image
 
     ```bash
     eval $(minikube docker-env)
@@ -104,28 +104,28 @@ These instructions will create the resources necessary to run the deconst conten
     docker push kube-registry.kube-system.svc.cluster.local:31000/content-service:dev
     ```
 
-1. Create resources
+1.  Create resources
 
     ```bash
     script/template kubernetes/deployment.yaml | kubectl apply -f -
     ```
 
-1. Watch and wait for resources
+1.  Watch and wait for resources
 
     ```bash
     watch kubectl get pods --namespace deconst
     ```
 
-1. Test that the content and staging content services are nominally working
+1.  Test that the content and staging content services are nominally working
 
     ```bash
     curl $(minikube service --url --namespace deconst content)/version/
     curl $(minikube service --url --namespace deconst staging-content)/version/
     ```
 
-1. Deploy the [presenter service](https://github.com/deconst/presenter#deconst-dev-env-in-kubernetes-with-minikube)
+1.  Deploy the [presenter service](https://github.com/deconst/presenter#deconst-dev-env-in-kubernetes-with-minikube)
 
-1. Delete resources
+1.  Delete resources
 
     ```bash
     kubectl delete deploy/content svc/content --namespace deconst
@@ -152,8 +152,8 @@ curl -H 'Authorization: deconst 12345' # ...
 
 Valid API keys include:
 
- * The admin API key, as specified by [the service configuration.](#configuration)
- * User keys issued by the [`POST /keys`](#post-keysnamedname) endpoint.
+*   The admin API key, as specified by [the service configuration.](#configuration)
+*   User keys issued by the [`POST /keys`](#post-keysnamedname) endpoint.
 
 The content service exposes the following API endpoints:
 
@@ -334,8 +334,8 @@ Attach a body to the GET request containing a JSON object mapping content IDs to
 
 The response will have a 200 status and a response body containing the queried content IDs and a boolean value of:
 
-* `true` if the envelope with that ID is already present and its checksum matches, or
-* `false` if the envelope is either missing entirely or its checksum differs.
+*   `true` if the envelope with that ID is already present and its checksum matches, or
+*   `false` if the envelope is either missing entirely or its checksum differs.
 
 The envelope that's queried for a fingerprint match is the envelope that would be rendered for a `GET /content/:id` request against this endpoint. In staging mode, this means that an envelope that's present in the local store with a different checksum will return `false` even if the upstream content service has that envelope with a matching checksum.
 
@@ -440,8 +440,8 @@ Attach a body to the GET request containing a JSON object mapping asset filename
 
 The response will have a 200 status and a response body mapping the queried paths to:
 
-* The known asset's public CDN URL if an asset with that filename and checksum is already present, or
-* `null` if no such asset exists.
+*   The known asset's public CDN URL if an asset with that filename and checksum is already present, or
+*   `null` if no such asset exists.
 
 In staging mode, the upstream content store will be queried for any assets that are not present locally.
 

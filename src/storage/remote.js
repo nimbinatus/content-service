@@ -1,3 +1,5 @@
+/* jshint node: true, esversion: 6*/
+
 'use strict';
 
 const async = require('async');
@@ -42,6 +44,46 @@ RemoteStorage.prototype.setup = function (callback) {
       }
 
       let indexName = `envelopes_${Date.now()}`;
+      this.createNewIndex(indexName, (err) => {
+        if (err) return cb(err);
+
+        this.makeIndexActive(indexName, cb);
+      });
+    });
+  };
+
+  connection.setup((err) => {
+    if (err) return callback(err);
+
+    async.parallel([mongoIndices, elasticIndices], callback);
+  });
+};
+
+/**
+ * @description Initialize connections to external systems (staging version).
+ */
+RemoteStorage.prototype.setupStaging = function (callback) {
+  const mongoIndices = (cb) => {
+    mongoCollection('staging_envelopes').createIndex({ contentID: 1 }, { unique: true }, cb);
+  };
+
+  const elasticIndices = (cb) => {
+    if (!connection.elastic) return cb(null);
+
+    // Attempt to create the latch index. If we can, we're responsible for setting up the initial
+    // index and alias. Otherwise, another content service is on it.
+    connection.elastic.indices.create({ index: 'latch', ignore: 400 }, (err, response, status) => {
+      if (err) return cb(err);
+
+      if (status === 400) {
+        // The latch index already existed, so another service is creating the search indices.
+        // Note that there's a race condition that occurs when a service that *isn't* creating
+        // the search indices attempts to store content between the creation of the latch index
+        // and the makeIndexActive() call below in the service that is.
+        return cb(null);
+      }
+
+      let indexName = `staging_envelopes_${Date.now()}`;
       this.createNewIndex(indexName, (err) => {
         if (err) return cb(err);
 
@@ -212,6 +254,10 @@ RemoteStorage.prototype.findKeys = function (apikey, callback) {
   }).toArray(callback);
 };
 
+/**
+ * @description Private method. Find a production envelope and replace it with
+ *   a more current production envelope.
+ */
 RemoteStorage.prototype._storeEnvelope = function (contentID, doc, callback) {
   const filter = { contentID };
   const options = { upsert: true };
@@ -219,6 +265,11 @@ RemoteStorage.prototype._storeEnvelope = function (contentID, doc, callback) {
   mongoCollection('envelopes').findOneAndReplace(filter, doc, options, callback);
 };
 
+/**
+ * @description Private method. Find a production envelope. Return a 500 error
+ *   if the service is having trouble finding the envelope. Return a 404 error
+ *   if the service returns no envelope at all.
+ */
 RemoteStorage.prototype._getEnvelope = function (contentID, callback) {
   mongoCollection('envelopes').find({ contentID }).limit(1).next((err, envelope) => {
     if (err) {
@@ -238,10 +289,17 @@ RemoteStorage.prototype._getEnvelope = function (contentID, callback) {
   });
 };
 
+/**
+ * @description Delete the production envelope with the given content ID.
+ */
 RemoteStorage.prototype.deleteEnvelope = function (contentID, callback) {
   mongoCollection('envelopes').deleteOne({ contentID }, callback);
 };
 
+/**
+ * @description Delete all production envelopes that match the given content
+ *   IDs.
+ */
 RemoteStorage.prototype.bulkDeleteEnvelopes = function (contentIDs, callback) {
   const ops = contentIDs.map((contentID) => {
     return { deleteOne: { filter: { contentID } } };
@@ -253,10 +311,10 @@ RemoteStorage.prototype.bulkDeleteEnvelopes = function (contentIDs, callback) {
 };
 
 /**
- * @description Query for the existence and fingerprint matches of a set of content IDs. The result
- * object will have the structure:
+ * @description Query for the existence and fingerprint matches of a set of
+ *   content IDs in prodution. The result object will have the structure:
  *
- * { contentID: { present: Boolean, matches: Boolean }}
+ *   { contentID: { present: Boolean, matches: Boolean }}
  */
 RemoteStorage.prototype.envelopesExist = function (contentIDMap, callback) {
   const query = { contentID: { $in: Object.keys(contentIDMap) } };
@@ -273,6 +331,9 @@ RemoteStorage.prototype.envelopesExist = function (contentIDMap, callback) {
   }, (err) => callback(err, results));
 };
 
+/**
+ * @description
+ */
 RemoteStorage.prototype._envelopeCursor = function (options) {
   let filter = {};
 
@@ -288,14 +349,131 @@ RemoteStorage.prototype._envelopeCursor = function (options) {
   return cursor;
 };
 
+/**
+ * @description
+ */
 RemoteStorage.prototype.listEnvelopes = function (options, eachCallback, endCallback) {
   this._envelopeCursor(options).forEach(eachCallback, endCallback);
 };
 
+/**
+ * @description
+ */
 RemoteStorage.prototype.countEnvelopes = function (options, callback) {
   this._envelopeCursor(options).count(true, callback);
 };
 
+/**
+ * @description Private method. Find a staging envelope and replace it with a
+ *   more current staging envelope.
+ */
+RemoteStorage.prototype._storeStagingEnvelope = function (contentID, doc, callback) {
+  const filter = { contentID };
+  const options = { upsert: true };
+
+  mongoCollection('staging_envelopes').findOneAndReplace(filter, doc, options, callback);
+};
+
+/**
+ * @description Private method. Find a staging envelope. Return a 500 error if
+ *   the service is having trouble finding the envelope. Return a 404 error if
+ *   the service returns no envelope at all.
+ */
+RemoteStorage.prototype._getStagingEnvelope = function (contentID, callback) {
+  mongoCollection('staging_envelopes').find({ contentID }).limit(1).next((err, envelope) => {
+    if (err) {
+      err.contentID = contentID;
+      err.statusCode = 500;
+      return callback(err);
+    }
+
+    if (envelope === null) {
+      let err = new Error('Envelope not found');
+      err.contentID = contentID;
+      err.statusCode = 404;
+      return callback(err);
+    }
+
+    callback(null, envelope);
+  });
+};
+
+/**
+ * @description Delete the staging envelope with the given content ID.
+ */
+RemoteStorage.prototype.deleteStagingEnvelope = function (contentID, callback) {
+  mongoCollection('staging_envelopes').deleteOne({ contentID }, callback);
+};
+
+/**
+ * @description Delete all staging envelopes that match the given content IDs.
+ */
+RemoteStorage.prototype.bulkDeleteStagingEnvelopes = function (contentIDs, callback) {
+  const ops = contentIDs.map((contentID) => {
+    return { deleteOne: { filter: { contentID } } };
+  });
+
+  const options = { ordered: false };
+
+  mongoCollection('staging_envelopes').bulkWrite(ops, options, callback);
+};
+
+/**
+ * @description Query for the existence and fingerprint matches of a set of
+ *   staging content IDs. The result object will have the structure:
+ *
+ *   { contentID: { present: Boolean, matches: Boolean }}
+ */
+RemoteStorage.prototype.envelopesStagingExist = function (contentIDMap, callback) {
+  const query = { contentID: { $in: Object.keys(contentIDMap) } };
+  const projection = { contentID: 1, fingerprint: 1 };
+
+  const results = Object.keys(contentIDMap).reduce((object, contentID) => {
+    object[contentID] = { present: false, matches: false };
+    return object;
+  }, {});
+
+  mongoCollection('staging_envelopes').find(query).project(projection).forEach((envelope) => {
+    results[envelope.contentID].present = true;
+    results[envelope.contentID].matches = envelope.fingerprint === contentIDMap[envelope.contentID];
+  }, (err) => callback(err, results));
+};
+
+/**
+ * @description
+ */
+RemoteStorage.prototype._envelopeStagingCursor = function (options) {
+  let filter = {};
+
+  if (options.prefix) {
+    filter = { contentID: { $regex: `^${options.prefix}` } };
+  }
+
+  let cursor = mongoCollection('staging_envelopes').find(filter);
+
+  if (options.skip) cursor = cursor.skip(options.skip);
+  if (options.limit) cursor = cursor.limit(options.limit);
+
+  return cursor;
+};
+
+/**
+ * @description
+ */
+RemoteStorage.prototype.listStagingEnvelopes = function (options, eachCallback, endCallback) {
+  this._envelopeStagingCursor(options).forEach(eachCallback, endCallback);
+};
+
+/**
+ * @description
+ */
+RemoteStorage.prototype.countStagingEnvelopes = function (options, callback) {
+  this._envelopeStagingCursor(options).count(true, callback);
+};
+
+/**
+ * @description
+ */
 RemoteStorage.prototype.createNewIndex = function (indexName, callback) {
   if (!connection.elastic) return callback(null);
 
@@ -321,6 +499,9 @@ RemoteStorage.prototype.createNewIndex = function (indexName, callback) {
   });
 };
 
+/**
+ * @description
+ */
 RemoteStorage.prototype._indexEnvelope = function (contentID, envelope, indexName, callback) {
   if (!connection.elastic) return callback(null);
 
@@ -332,6 +513,9 @@ RemoteStorage.prototype._indexEnvelope = function (contentID, envelope, indexNam
   }, callback);
 };
 
+/**
+ * @description
+ */
 RemoteStorage.prototype.makeIndexActive = function (indexName, callback) {
   if (!connection.elastic) return callback(null);
 
@@ -361,6 +545,9 @@ RemoteStorage.prototype.makeIndexActive = function (indexName, callback) {
   });
 };
 
+/**
+ * @description
+ */
 RemoteStorage.prototype.queryEnvelopes = function (query, categories, pageNumber, perPage, callback) {
   if (!connection.elastic) {
     return callback(null, {
@@ -399,6 +586,9 @@ RemoteStorage.prototype.queryEnvelopes = function (query, categories, pageNumber
   }, callback);
 };
 
+/**
+ * @description
+ */
 RemoteStorage.prototype.unindexEnvelope = function (contentID, callback) {
   if (!connection.elastic) return callback(null);
 
@@ -416,6 +606,9 @@ RemoteStorage.prototype.unindexEnvelope = function (contentID, callback) {
   });
 };
 
+/**
+ * @description
+ */
 RemoteStorage.prototype.bulkUnindexEnvelopes = function (contentIDs, callback) {
   if (!connection.elastic) return callback(null);
 
@@ -426,6 +619,42 @@ RemoteStorage.prototype.bulkUnindexEnvelopes = function (contentIDs, callback) {
   connection.elastic.bulk({ body: actions }, callback);
 };
 
+/**
+ * @description
+ */
+RemoteStorage.prototype.unindexStagingEnvelope = function (contentID, callback) {
+  if (!connection.elastic) return callback(null);
+
+  connection.elastic.delete({
+    index: 'staging_envelopes_current',
+    type: 'envelope',
+    id: contentID
+  }, (err) => {
+    if (err && err.status === '404') {
+      // It's already gone. Disregard.
+      return callback(null);
+    }
+
+    callback(err);
+  });
+};
+
+/**
+ * @description
+ */
+RemoteStorage.prototype.bulkUnindexStagingEnvelopes = function (contentIDs, callback) {
+  if (!connection.elastic) return callback(null);
+
+  const actions = contentIDs.map((id) => {
+    return { delete: { _index: 'staging_envelopes_current', _type: 'envelope', _id: id } };
+  });
+
+  connection.elastic.bulk({ body: actions }, callback);
+};
+
+/**
+ * @description
+ */
 RemoteStorage.prototype.storeSHA = function (sha, callback) {
   mongoCollection('sha').updateOne({
     key: 'controlRepository'
@@ -439,6 +668,9 @@ RemoteStorage.prototype.storeSHA = function (sha, callback) {
   }, callback);
 };
 
+/**
+ * @description
+ */
 RemoteStorage.prototype.getSHA = function (callback) {
   mongoCollection('sha').findOne({key: 'controlRepository'}, (err, doc) => {
     if (err) return callback(err);

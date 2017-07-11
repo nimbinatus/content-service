@@ -1,3 +1,5 @@
+/* jshint node: true, esversion: 6*/
+
 'use strict';
 
 /**
@@ -33,6 +35,13 @@ var delegates = exports.delegates = [
   'envelopesExist',
   'listEnvelopes',
   'countEnvelopes',
+  '_storeStagingEnvelope',
+  '_getStagingEnvelope',
+  'deleteStagingEnvelope',
+  'bulkDeleteStagingEnvelopes',
+  'envelopesStagingExist',
+  'listStagingEnvelopes',
+  'countStagingEnvelopes',
   'createNewIndex',
   '_indexEnvelope',
   'makeIndexActive',

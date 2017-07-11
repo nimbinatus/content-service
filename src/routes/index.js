@@ -5,6 +5,7 @@ var auth = require('../auth');
 var version = require('./version');
 var content = require('./content');
 var assets = require('./assets');
+var staging_content = require('./staging_content');
 var keys = require('./keys');
 var control = require('./control');
 var reindex = require('./reindex');
@@ -25,6 +26,13 @@ exports.loadRoutes = function (server) {
   server.post('/assets', auth.requireKey, restify.bodyParser(), restify.queryParser(), assets.store);
   server.post('/bulkasset', auth.requireKey, restify.queryParser(), assets.bulk);
   server.get('/checkassets', restify.bodyParser({ requestBodyOnGet: true }), assets.check);
+
+  server.get('/stagingcontent', restify.queryParser(), staging_content.list);
+  server.get('/stagingcontent/:id', staging_content.retrieve);
+  server.put('/stagingcontent/:id', auth.requireKey, restify.bodyParser(), staging_content.store);
+  server.del('/stagingcontent/:id', auth.requireKey, restify.queryParser(), staging_content.remove);
+  server.post('/bulkstagingcontent', auth.requireKey, staging_content.bulk);
+  server.get('/checkstagingcontent', restify.bodyParser({ requestBodyOnGet: true }), staging_content.check);
 
   server.get('/search', restify.queryParser(), search.query);
 
