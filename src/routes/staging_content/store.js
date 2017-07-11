@@ -14,7 +14,7 @@ exports.handler = function (req, res, next) {
 
   req.logger.debug('Content storage request received.', { contentID });
 
-  storeEnvelope(contentID, envelope, (err) => {
+  storeStagingEnvelope(contentID, envelope, (err) => {
     if (err) {
       req.logger.reportError('Unable to store content.', err);
       return next(err);
@@ -26,9 +26,9 @@ exports.handler = function (req, res, next) {
   });
 };
 
-const storeEnvelope = exports.storeEnvelope = function (contentID, envelope, callback) {
+const storeStagingEnvelope = exports.storeStagingEnvelope = function (contentID, envelope, callback) {
   async.parallel([
-    (cb) => storage.storeEnvelope(contentID, envelope, cb),
-    (cb) => storage.indexEnvelope(contentID, envelope, cb)
+    (cb) => storage.storeStagingEnvelope(contentID, envelope, cb),
+    (cb) => storage.indexStagingEnvelope(contentID, envelope, cb)
   ], callback);
 };
